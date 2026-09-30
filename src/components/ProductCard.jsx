@@ -1,9 +1,17 @@
 
-function ProductCard() {
+function ProductCard({product,onDelete }) {
+
     return (
         <div>
-            <h2>Laptop</h2>
-            <p> Price: $1000</p>
+            <h2>{product.name}</h2>
+
+            <p>Category: {product.category}</p>
+
+            <p>Price: ${product.price}</p>
+
+             <button onClick={() => onDelete(product.id)}>
+                Delete
+            </button>
         </div>
     );
 }
