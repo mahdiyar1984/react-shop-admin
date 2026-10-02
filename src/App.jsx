@@ -1,76 +1,105 @@
-import { useState } from 'react'
-import Navbar from './components/Navbar'
-import ProductCard from './components/ProductCard'
-import './App.css'
+import { useEffect, useState } from "react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Navbar from "./components/Navbar";
+import Dashboard from "./pages/Dashboard";
+import Products from "./pages/Products";
+import AddProduct from "./pages/AddProduct";
+import ProductDetail from "./pages/ProductDetail";
+
 
 function App() {
 
-  const [products, setProducts] = useState([
-    {
-      id: 1,
-      name: "Laptop",
-      price: 1200,
-      category: "Computer"
-    },
-    {
-      id: 2,
-      name: "Phone",
-      price: 700,
-      category: "Mobile"
-    },
-    {
-      id: 3,
-      name: "Tablet",
-      price: 500,
-      category: "Tablet"
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  async function fetchProducts() {
+
+    try {
+      setLoading(true);
+      setError("");
+
+      const response = await fetch(
+        "http://localhost:8000/api/products/"
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          "Failed to fetch products"
+        );
+      }
+
+      const data = await response.json();
+      setProducts(data);
+
+    } catch (error) {
+      setError(error.message);
+
+    } finally {
+      setLoading(false);
     }
-  ]);
-
-  function addProduct() {
-
-    const newProduct = {
-      id: 4,
-      name: "Tablet",
-      price: 500,
-      category: "Tablet"
-    };
-
-    setProducts([
-      ...products,
-      newProduct
-    ]);
   }
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
 
   function deleteProduct(id) {
     setProducts(
-      products.filter(product => product.id !== id)
+      products.filter(
+        product => product.id !== id
+      )
     );
-
   }
 
+
   return (
-    <>
-      <div>
 
-        <h1>Shop Admin Dashboard</h1>
+    <BrowserRouter>
 
-        <button onClick={addProduct}>
-          Add Product
-        </button>
+      <Navbar />
 
-        <h2>Products</h2>
+      <Routes>
 
-        {products.map(product => (
-          <ProductCard
-            key={product.id}
-            product={product}
-            onDelete={deleteProduct}
-          />
-        ))}
+        <Route
+          path="/"
+          element={
+            <Dashboard />
+          }
+        />
 
-      </div>
-    </>
-  )
+        <Route
+          path="/products"
+          element={
+            <Products
+              products={products}
+              loading={loading}
+              error={error}
+              onDelete={deleteProduct}
+            />
+          }
+        />
+
+
+        <Route
+          path="/products/add"
+          element={
+            <AddProduct />
+          }
+        />
+
+        <Route
+          path="/products/:id"
+          element={
+            <ProductDetail />
+          }
+        />
+
+      </Routes>
+
+    </BrowserRouter>
+  );
 }
 
-export default App
+export default App;
