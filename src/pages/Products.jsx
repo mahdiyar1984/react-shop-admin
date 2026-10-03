@@ -1,6 +1,6 @@
 import ProductList from "../components/ProductList";
 
-function Products({ products, loading, error, onDelete }) {
+function Products({ products, loading, error, onDelete , deletingId}) {
 
     if (loading) {
         return <p>Loading...</p>;
@@ -18,6 +18,7 @@ function Products({ products, loading, error, onDelete }) {
             <ProductList
                 products={products}
                 onDelete={onDelete}
+                deletingId={deletingId}
             />
 
         </div>

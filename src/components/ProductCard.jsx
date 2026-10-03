@@ -1,5 +1,5 @@
 
-function ProductCard({ product, onDelete }) {
+function ProductCard({ product, onDelete, deletingId }) {
 
     return (
         <div>
@@ -8,7 +8,15 @@ function ProductCard({ product, onDelete }) {
             <p>Category: {product.category}</p>
             <p>Price: ${product.price}</p>           
 
-            <button onClick={() => onDelete(product.id)}>Delete</button>
+            <button
+                onClick={() => onDelete(product.id)}
+                disabled={deletingId}
+            >
+                {deletingId
+                    ? "Deleting..."
+                    : "Delete"
+                }
+            </button>
 
         </div>
     );

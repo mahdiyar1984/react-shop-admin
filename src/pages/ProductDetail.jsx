@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 
 
 function ProductDetail() {
 
     const { id } = useParams();
-    
+
     const [product, setProduct] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -20,13 +20,11 @@ function ProductDetail() {
                 `http://localhost:8000/api/products/${id}/`
             );
 
-
             if (!response.ok) {
                 throw new Error(
                     "Product not found"
                 );
             }
-
 
             const data = await response.json();
             setProduct(data);
@@ -80,6 +78,9 @@ function ProductDetail() {
             <p>
                 Category: {product.category}
             </p>
+            <Link to={`/products/${id}/edit`}>
+                Edit Product
+            </Link>
 
         </div>
     );

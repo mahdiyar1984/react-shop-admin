@@ -1,75 +1,62 @@
-import { useState } from "react";
-
-function ProductForm({ onAddProduct }) {
-
-    const [productForm, setProductForm] = useState({
-        name: "",
-        price: "",
-        category: ""
-    });
-
-
-    function handleChange(event) {
-        const { name, value } = event.target;
-        setProductForm({
-            ...productForm,
-            [name]: value
-        });
-    }
-
-
-    function handleSubmit(event) {
-        event.preventDefault();
-        onAddProduct(productForm);
-        setProductForm({
-            name: "",
-            price: "",
-            category: ""
-        });
-    }
-
+function ProductForm({productForm, onChange, onSubmit, loading, buttonText = "Save"}) {
 
     return (
+        <form onSubmit={onSubmit}>
 
-        <div>
-
-            <h2>
-                Add Product
-            </h2>
-
-            <form onSubmit={handleSubmit}>
+            <div>
+                <label>
+                    Name
+                </label>
 
                 <input
                     type="text"
                     name="name"
-                    placeholder="Product Name"
-                    value={productForm.title}
-                    onChange={handleChange}
+                    value={productForm.name}
+                    onChange={onChange}
                 />
+            </div>
+
+
+            <div>
+                <label>
+                    Price
+                </label>
 
                 <input
                     type="number"
                     name="price"
-                    placeholder="Price"
                     value={productForm.price}
-                    onChange={handleChange}
+                    onChange={onChange}
                 />
+            </div>
+
+
+            <div>
+                <label>
+                    Category
+                </label>
 
                 <input
                     type="text"
                     name="category"
-                    placeholder="Category"
                     value={productForm.category}
-                    onChange={handleChange}
+                    onChange={onChange}
                 />
+            </div>
 
-                <button type="submit">
-                    Add Product
-                </button>
 
-            </form>
+            <button
+                type="submit"
+                disabled={loading}
+            >
+                {loading
+                    ? "Saving..."
+                    : buttonText
+                }
+            </button>
 
-        </div>
+
+        </form>
     );
 }
 
