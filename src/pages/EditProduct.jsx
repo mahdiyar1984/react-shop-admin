@@ -1,19 +1,20 @@
-import {useEffect, useState} from "react";
-import {useNavigate, useParams} from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import ProductForm from "../components/ProductForm";
 
 
 function EditProduct({ onUpdateProduct }) {
 
     const { id } = useParams();
-    const navigate = useNavigate();
+    const navigate = useNavigate();    
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState("");
     const [productForm, setProductForm] = useState({
         name: "",
         price: "",
         category: ""
     });
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
 
     async function fetchProduct() {
 
@@ -67,14 +68,14 @@ function EditProduct({ onUpdateProduct }) {
     async function handleSubmit(event) {
         event.preventDefault();
         try {
-            setLoading(true);
+            setSaving(true);
             setError("");
 
             const response = await fetch(
                 `http://localhost:8000/api/products/${id}/`,
                 {
                     method: "PATCH",
-                    headers: {"Content-Type": "application/json"},
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(productForm)
                 }
             );
@@ -95,7 +96,7 @@ function EditProduct({ onUpdateProduct }) {
             setError(error.message);
 
         } finally {
-            setLoading(false);
+            setSaving(false);
         }
     }
 
@@ -128,7 +129,7 @@ function EditProduct({ onUpdateProduct }) {
                 productForm={productForm}
                 onChange={handleChange}
                 onSubmit={handleSubmit}
-                loading={loading}
+                loading={saving}
                 buttonText="Update Product"
             />
 
