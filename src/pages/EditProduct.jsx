@@ -1,15 +1,18 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import ProductForm from "../components/ProductForm";
+import useFetch from "../hooks/useFetch";
 
 
 function EditProduct({ onUpdateProduct }) {
 
     const { id } = useParams();
-    const navigate = useNavigate();    
+    const navigate = useNavigate();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
+    const [actionError, setActionError] = useState("");
+
     const [productForm, setProductForm] = useState({
         name: "",
         price: "",
@@ -32,7 +35,6 @@ function EditProduct({ onUpdateProduct }) {
                 );
             }
 
-
             const data = await response.json();
 
             setProductForm({
@@ -40,7 +42,6 @@ function EditProduct({ onUpdateProduct }) {
                 price: data.price,
                 category: data.category
             });
-
 
         } catch (error) {
             setError(error.message);
@@ -69,7 +70,7 @@ function EditProduct({ onUpdateProduct }) {
         event.preventDefault();
         try {
             setSaving(true);
-            setError("");
+            setActionError("");
 
             const response = await fetch(
                 `http://localhost:8000/api/products/${id}/`,
@@ -79,7 +80,6 @@ function EditProduct({ onUpdateProduct }) {
                     body: JSON.stringify(productForm)
                 }
             );
-
 
             if (!response.ok) {
                 throw new Error(
@@ -91,20 +91,26 @@ function EditProduct({ onUpdateProduct }) {
             onUpdateProduct(data);
             navigate(`/products/${id}`);
 
-
         } catch (error) {
-            setError(error.message);
+            setActionError(error.message);
 
         } finally {
             setSaving(false);
         }
     }
 
-
     if (loading) {
         return (
             <p>
-                Loading...
+                Loading product...
+            </p>
+        );
+    }
+
+    if (error) {
+        return (
+            <p>
+                {error}
             </p>
         );
     }
@@ -117,13 +123,11 @@ function EditProduct({ onUpdateProduct }) {
                 Edit Product
             </h1>
 
-
-            {error && (
+            {actionError && (
                 <p>
-                    {error}
+                    {actionError}
                 </p>
             )}
-
 
             <ProductForm
                 productForm={productForm}

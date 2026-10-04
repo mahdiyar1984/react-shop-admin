@@ -6,6 +6,8 @@ import Products from "./pages/Products";
 import AddProduct from "./pages/AddProduct";
 import ProductDetail from "./pages/ProductDetail";
 import EditProduct from "./pages/EditProduct";
+import useApi from "./hooks/useApi";
+import { getProducts, createProduct, updateProduct, deleteProduct } from "./api/productsApi";
 
 
 function App() {
@@ -19,27 +21,15 @@ function App() {
   async function fetchProducts() {
 
     try {
-      setLoading(true);
-      setError("");
 
-      const response = await fetch(
-        "http://localhost:8000/api/products/"
-      );
+      const data = await getProducts();
 
-      if (!response.ok) {
-        throw new Error(
-          "Failed to fetch products"
-        );
-      }
-
-      const data = await response.json();
       setProducts(data);
 
     } catch (error) {
-      setError(error.message);
 
-    } finally {
-      setLoading(false);
+      console.log(error);
+
     }
   }
 
@@ -92,7 +82,7 @@ function App() {
       );
 
     } catch (error) {
-      console.error(error);
+      setActionError(error.message);
 
     } finally {
       setDeletingId(null);
@@ -122,6 +112,8 @@ function App() {
               error={error}
               onDelete={deleteProduct}
               deletingId={deletingId}
+              actionError={actionError}
+              onRefresh={fetchProducts}
             />
           }
         />

@@ -1,7 +1,7 @@
 import ProductCard from "./ProductCard";
 import { Link } from "react-router-dom";
 
-function ProductList({ products, onDelete,deletingId }) {
+function ProductList({ products, onDelete, deletingId }) {
 
     return (
         <div>

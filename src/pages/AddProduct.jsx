@@ -11,8 +11,8 @@ function AddProduct({ onAddProduct }) {
         price: "",
         category: ""
     });
-    const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+    const [saving, setSaving] = useState(false);
 
 
     function handleChange(event) {
@@ -30,14 +30,14 @@ function AddProduct({ onAddProduct }) {
 
         try {
 
-            setLoading(true);
+            setSaving(true);
             setError("");
 
             const response = await fetch(
                 "http://localhost:8000/api/products/",
                 {
                     method: "POST",
-                    headers: {"Content-Type": "application/json"},
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(productForm)
                 }
             );
@@ -50,8 +50,8 @@ function AddProduct({ onAddProduct }) {
             }
 
 
-            const data = await response.json();      
-            onAddProduct(data);    
+            const data = await response.json();
+            onAddProduct(data);
             navigate("/products");
 
 
@@ -59,7 +59,7 @@ function AddProduct({ onAddProduct }) {
             setError(error.message);
 
         } finally {
-            setLoading(false);
+            setSaving(false);
         }
     }
 
@@ -83,7 +83,7 @@ function AddProduct({ onAddProduct }) {
                 productForm={productForm}
                 onChange={handleChange}
                 onSubmit={handleSubmit}
-                loading={loading}
+                loading={saving}
             />
 
         </div>

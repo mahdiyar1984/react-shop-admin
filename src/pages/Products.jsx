@@ -1,19 +1,43 @@
 import ProductList from "../components/ProductList";
 
-function Products({ products, loading, error, onDelete , deletingId}) {
+function Products({ products, loading, error, onDelete, deletingId, actionError, onRefresh }) {
 
     if (loading) {
-        return <p>Loading...</p>;
+        return (
+            <div>
+                <h1>Products</h1>
+                <p>Loading products...</p>
+            </div>
+        );
     }
 
     if (error) {
-        return <p>{error}</p>;
+        return (
+            <div>
+
+                <h1>Products</h1>
+
+                <p>{error}</p>
+
+                <button onClick={onRefresh}>
+                    Try Again
+                </button>
+                
+            </div>
+        );
     }
+
 
     return (
         <div>
 
             <h1>Products</h1>
+
+            {actionError && (
+                <p>
+                    {actionError}
+                </p>
+            )}
 
             <ProductList
                 products={products}
