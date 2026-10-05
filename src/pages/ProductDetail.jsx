@@ -1,42 +1,24 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
+import useApi from "../hooks/useApi";
+import { getProduct } from "../api/productsApi";
 
 
 function ProductDetail() {
 
     const { id } = useParams();
-
     const [product, setProduct] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
+    const { request, loading, error } = useApi();
 
     async function fetchProduct() {
 
         try {
-            setLoading(true);
-            setError("");
-
-            const response = await fetch(
-                `http://localhost:8000/api/products/${id}/`
-            );
-
-            if (!response.ok) {
-                throw new Error(
-                    "Product not found"
-                );
-            }
-
-            const data = await response.json();
+            const data = await getProduct(request, id);
             setProduct(data);
-
         } catch (error) {
-            setError(error.message);
-
-        } finally {
-            setLoading(false);
+            console.log(error);
         }
     }
-
 
     useEffect(() => {
         fetchProduct();
@@ -44,7 +26,6 @@ function ProductDetail() {
 
 
     if (loading) {
-
         return (
             <p>
                 Loading...

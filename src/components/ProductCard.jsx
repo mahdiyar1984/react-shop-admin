@@ -1,25 +1,28 @@
+import { Link } from "react-router-dom";
 
-function ProductCard({ product, onDelete, deletingId }) {
-
+function ProductCard({ product }) {
     return (
         <div>
+            <h3>
+                {product.name}
+            </h3>
 
-            <h2>Title: {product.name}</h2>
-            <p>Category: {product.category}</p>
-            <p>Price: ${product.price}</p>           
+            <p>
+                Price: {product.price}
+            </p>
 
-            <button
-                onClick={() => onDelete(product.id)}
-                disabled={deletingId}
-            >
-                {deletingId
-                    ? "Deleting..."
-                    : "Delete"
-                }
-            </button>
+            <p>
+                Category: {product.category}
+            </p>
 
+            <Link to={`/products/${product.id}`}>
+                View Details
+            </Link>
+
+            <Link to={`/products/${product.id}/edit`}>
+                Edit
+            </Link>
         </div>
     );
 }
-
 export default ProductCard;

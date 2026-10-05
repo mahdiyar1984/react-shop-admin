@@ -1,50 +1,28 @@
+import useFetch from "../hooks/useFetch";
+import {getProducts, deleteProduct} from "../api/productsApi";
 import ProductList from "../components/ProductList";
 
-function Products({ products, loading, error, onDelete, deletingId, actionError, onRefresh }) {
+function Products() {
 
-    if (loading) {
-        return (
-            <div>
-                <h1>Products</h1>
-                <p>Loading products...</p>
-            </div>
-        );
-    }
+    const {data: products, loading, error, execute: refreshProducts} = useFetch(getProducts);
+    if (loading && !products) {return (<div>Loading products...</div>);}
 
     if (error) {
         return (
             <div>
-
-                <h1>Products</h1>
-
-                <p>{error}</p>
-
-                <button onClick={onRefresh}>
-                    Try Again
-                </button>
-                
+                <p>Error: {error}</p>
+                <button onClick={refreshProducts}>Try Again</button>
             </div>
         );
     }
 
-
     return (
         <div>
-
             <h1>Products</h1>
-
-            {actionError && (
-                <p>
-                    {actionError}
-                </p>
-            )}
-
-            <ProductList
-                products={products}
-                onDelete={onDelete}
-                deletingId={deletingId}
-            />
-
+            <button onClick={refreshProducts} disabled={loading}>
+                {loading ? "Refreshing..." : "Refresh"}
+            </button>
+            <ProductList  products={products || []}/>
         </div>
     );
 }

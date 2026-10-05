@@ -2,52 +2,27 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import ProductForm from "../components/ProductForm";
 import useFetch from "../hooks/useFetch";
+import useApi from "../hooks/useApi";
+import { getProduct, updateProduct } from "../api/productsApi";
 
 
 function EditProduct({ onUpdateProduct }) {
 
     const { id } = useParams();
     const navigate = useNavigate();
-    const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [error, setError] = useState("");
     const [actionError, setActionError] = useState("");
-
-    const [productForm, setProductForm] = useState({
-        name: "",
-        price: "",
-        category: ""
-    });
+    const [productForm, setProductForm] = useState({ name: "", price: "", category: "" });
+    const { request, loading, error } = useApi();
 
     async function fetchProduct() {
 
         try {
-            setLoading(true);
-            setError("");
-
-            const response = await fetch(
-                `http://localhost:8000/api/products/${id}/`
-            );
-
-            if (!response.ok) {
-                throw new Error(
-                    "Failed to fetch product"
-                );
-            }
-
-            const data = await response.json();
-
-            setProductForm({
-                name: data.name,
-                price: data.price,
-                category: data.category
-            });
+            const data = await getProduct(request, id);
+            setProductForm({ name: data.name, price: data.price, category: data.category });
 
         } catch (error) {
-            setError(error.message);
-
-        } finally {
-            setLoading(false);
+            console.log(error);
         }
     }
 
@@ -69,33 +44,12 @@ function EditProduct({ onUpdateProduct }) {
     async function handleSubmit(event) {
         event.preventDefault();
         try {
-            setSaving(true);
-            setActionError("");
-
-            const response = await fetch(
-                `http://localhost:8000/api/products/${id}/`,
-                {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(productForm)
-                }
-            );
-
-            if (!response.ok) {
-                throw new Error(
-                    "Failed to update product"
-                );
-            }
-
-            const data = await response.json();
+            const data = await updateProduct(request, id, productForm);
             onUpdateProduct(data);
             navigate(`/products/${id}`);
 
         } catch (error) {
-            setActionError(error.message);
-
-        } finally {
-            setSaving(false);
+            console.log(error);
         }
     }
 
@@ -103,14 +57,6 @@ function EditProduct({ onUpdateProduct }) {
         return (
             <p>
                 Loading product...
-            </p>
-        );
-    }
-
-    if (error) {
-        return (
-            <p>
-                {error}
             </p>
         );
     }
@@ -123,9 +69,9 @@ function EditProduct({ onUpdateProduct }) {
                 Edit Product
             </h1>
 
-            {actionError && (
+            {error && (
                 <p>
-                    {actionError}
+                    {error}
                 </p>
             )}
 
@@ -133,7 +79,7 @@ function EditProduct({ onUpdateProduct }) {
                 productForm={productForm}
                 onChange={handleChange}
                 onSubmit={handleSubmit}
-                loading={saving}
+                loading={loading}
                 buttonText="Update Product"
             />
 
