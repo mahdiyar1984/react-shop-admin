@@ -1,67 +1,28 @@
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ProductForm from "../components/ProductForm";
-import useApi from "../hooks/useApi";
-import { createProduct } from "../api/productsApi";
+import { createProduct as createProductApi } from "../api/productsApi";
+import useMutation from "../hooks/useMutation";
 
 
-function AddProduct({ onAddProduct }) {
-
+function AddProduct() {
     const navigate = useNavigate();
-    const [productForm, setProductForm] = useState({ name: "", price: "", category: "" });
-    const { request, loading, error } = useApi();
+    const {execute: createProduct, loading, error} = useMutation(createProductApi);
 
-    function handleChange(event) {
-        const { name, value } = event.target;
-        setProductForm({
-            ...productForm,
-            [name]: value
-        });
-    }
-
-
-    async function handleSubmit(event) {
-
-        event.preventDefault();
-
+    async function handleSubmit(product) {
         try {
-            const data =
-            await createProduct(request, productForm);
-            onAddProduct(data);
+            await createProduct(product);
             navigate("/products");
-
-        } catch (error) {
-            console.log(error);
         } 
+        catch (error) {
+        }
     }
-
 
     return (
         <div>
-
-            <h1>
-                Add Product
-            </h1>
-
-
-            {error && (
-                <p>
-                    {error}
-                </p>
-            )}
-
-
-            <ProductForm
-                productForm={productForm}
-                onChange={handleChange}
-                onSubmit={handleSubmit}
-                loading={loading}
-                buttonText="Add Product"
-            />
-
+            <h1>Add Product</h1>
+            {error && (<p>{error}</p>)}
+            <ProductForm onSubmit={handleSubmit} loading={loading}/>
         </div>
     );
 }
-
-
 export default AddProduct;
