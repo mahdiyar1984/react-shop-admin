@@ -1,32 +1,30 @@
-import useFetch from "../hooks/useFetch";
-import useMutation from "../hooks/useMutation";
-import { getProducts, deleteProduct as deleteProductApi } from "../api/productsApi";
+import { useEffect } from "react";
+import {useProducts} from "../context/ProductContext";
 import ProductList from "../components/ProductList";
 
 function Products() {
-
-    const { data: products, loading, error, updateData } = useFetch(getProducts);
-    const { execute: deleteProduct, loading: deleting, error: deleteError } = useMutation(deleteProductApi);
+    const {products, loading, error, deleting, actionError, fetchProducts, removeProduct} = useProducts();
+    useEffect(() => {
+        fetchProducts().catch(() => {});
+    }, [fetchProducts]);
 
     async function handleDelete(id) {
         try {
-            await deleteProduct(id);
-            updateData(prev => prev.filter(product => product.id !== id));
+            await removeProduct(id);
         }
         catch (error) {
             // useMutation خطا را مدیریت کرده است.
         }
     }
 
-    if (loading && !products) { return (<div>Loading products...</div>); }
+    if (loading && products.length === 0) { return (<div>Loading products...</div>); }
     if (error) { return (<p>{error}</p>); }
 
     return (
         <div>
             <h1>Products</h1>
-            {deleteError && (<p>{deleteError}</p>)}
-            {deleting && (<p>Deleting product...</p>)}
-            <ProductList products={products || []} onDelete={handleDelete} deleting={deleting} />
+            {actionError && (<p>{actionError}</p>)}
+            <ProductList products={products} onDelete={handleDelete} deleting={deleting}/>
         </div>
     );
 }

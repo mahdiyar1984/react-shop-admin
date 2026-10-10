@@ -1,30 +1,27 @@
 import { useNavigate } from "react-router-dom";
 import ProductForm from "../components/ProductForm";
-import { createProduct as createProductApi } from "../api/productsApi";
-import useMutation from "../hooks/useMutation";
+import {useProducts} from "../context/ProductContext";
 
 
 function AddProduct() {
     const navigate = useNavigate();
-    const {execute: createProduct, loading, error} = useMutation(createProductApi);
+    const {addProduct, creating, actionError} = useProducts();
 
     async function handleSubmit(product) {
         try {
-            console.log("PRODUCT TO SEND:", product);
-            await createProduct(product);
-            console.log("PRODUCT CREATED");
+            await addProduct(product);
             navigate("/products");
         } 
         catch (error) {
-            console.error("ADD PRODUCT ERROR:", error);
+            // خطا در actionError قرار گرفته است.
         }
     }
 
     return (
         <div>
             <h1>Add Product</h1>
-            {error && (<p>{error}</p>)}
-            <ProductForm onSubmit={handleSubmit} loading={loading}/>
+            {actionError && (<p>{actionError}</p>)}
+            <ProductForm onSubmit={handleSubmit} loading={creating}/>
         </div>
     );
 }

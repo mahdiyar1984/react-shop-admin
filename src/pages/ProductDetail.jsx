@@ -1,30 +1,19 @@
-import { useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { getProduct } from "../api/productsApi";
-import useFetch from "../hooks/useFetch";
+import {Link, useParams} from "react-router-dom";
+import {useProducts} from "../context/ProductContext";
 
 function ProductDetail() {
     const { id } = useParams();
-    const navigate = useNavigate();
-    const fetchProduct = useCallback((request, signal) => getProduct(request, id, signal), [id]);
-    const { data: product, loading, error} = useFetch(fetchProduct);
-
-    if (loading) {return <p>Loading product...</p>;}
-    if (error) {return <p>{error}</p>;}
-    if (!product) {return <p>Product not found.</p>;}
+    const {products, loading} = useProducts();
+    const product = products.find(item => item.id === Number(id));
+    if (loading && products.length === 0) {return (<p>Loading...</p>);}
+    if (!product) {return (<p>Product not found.</p>);}
 
     return (
         <div>
-            <h1>Product Detail</h1>
-            <div>
-                <p><strong>ID:</strong> {product.id}</p>
-                <p><strong>Name:</strong> {product.name}</p>
-                <p><strong>Price:</strong> {product.price}</p>
-                <p><strong>Category:</strong> {product.category}</p>
-            </div>
-
-            <button onClick={() => navigate("/products")}>Back to Products</button>
-
+            <h1>{product.name}</h1>
+            <p>Price: {product.price}</p>
+            
+            <Link to={`/products/${product.id}/edit`}>Edit</Link>
         </div>
     );
 }

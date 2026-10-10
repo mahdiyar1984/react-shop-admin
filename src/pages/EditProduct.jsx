@@ -1,36 +1,43 @@
-import { useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import {useParams, useNavigate} from "react-router-dom";
 import ProductForm from "../components/ProductForm";
-import { getProduct, updateProduct as updateProductApi } from "../api/productsApi";
-import useFetch from "../hooks/useFetch";
-import useMutation from "../hooks/useMutation";
+import {useProducts} from "../context/ProductContext";
 
 function EditProduct() {
 
     const { id } = useParams();
     const navigate = useNavigate();
-    const fetchProduct = useCallback((request, signal) => getProduct(request, id, signal), [id]);
-    const { data: product, loading: loadingProduct, error: productError } = useFetch(fetchProduct);
-    const { execute: updateProduct, loading: updating, error: updateError } = useMutation(updateProductApi);
+    const {products, loading, updating, actionError, editProduct} = useProducts();
+    const product = products.find(item => item.id === Number(id));
 
-    async function handleSubmit(data) {
+     async function handleSubmit(data) {
         try {
-            await updateProduct(id, data);
+            await editProduct(Number(id), data);
             navigate("/products");
-        }
+        } 
         catch (error) {
-            console.error("UPDATE ERROR:", error);
+            // خطا در actionError قرار گرفته است.
         }
     }
 
-    if (loadingProduct) { return (<p>Loading product...</p>); }
-    if (productError) { return (<p>{productError}</p>); }
-    if (!product) { return (<p>Product not found.</p>); }
+    if (loading && products.length === 0) {
+        return (
+            <p>
+                Loading products...
+            </p>
+        );
+    }
+    if (!product) {
+        return (
+            <p>
+                Product not found.
+            </p>
+        );
+    }
 
     return (
         <div>
             <h1>Edit Product</h1>
-            {updateError && (<p>{updateError}</p>)}
+            {actionError  && (<p>{actionError }</p>)}
             <ProductForm initialData={product} onSubmit={handleSubmit} loading={updating} />
         </div>
     );
