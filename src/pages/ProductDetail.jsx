@@ -1,71 +1,32 @@
-import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
-import useApi from "../hooks/useApi";
+import { useCallback } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { getProduct } from "../api/productsApi";
-
+import useFetch from "../hooks/useFetch";
 
 function ProductDetail() {
-
     const { id } = useParams();
-    const [product, setProduct] = useState(null);
-    const { request, loading, error } = useApi();
+    const navigate = useNavigate();
+    const fetchProduct = useCallback((request, signal) => getProduct(request, id, signal), [id]);
+    const { data: product, loading, error} = useFetch(fetchProduct);
 
-    async function fetchProduct() {
-
-        try {
-            const data = await getProduct(request, id);
-            setProduct(data);
-        } catch (error) {
-            console.log(error);
-        }
-    }
-
-    useEffect(() => {
-        fetchProduct();
-    }, [id]);
-
-
-    if (loading) {
-        return (
-            <p>
-                Loading...
-            </p>
-        );
-    }
-
-
-    if (error) {
-
-        return (
-            <p>
-                {error}
-            </p>
-        );
-    }
-
+    if (loading) {return <p>Loading product...</p>;}
+    if (error) {return <p>{error}</p>;}
+    if (!product) {return <p>Product not found.</p>;}
 
     return (
-
         <div>
+            <h1>Product Detail</h1>
+            <div>
+                <p><strong>ID:</strong> {product.id}</p>
+                <p><strong>Name:</strong> {product.name}</p>
+                <p><strong>Price:</strong> {product.price}</p>
+                <p><strong>Category:</strong> {product.category}</p>
+            </div>
 
-            <h1>
-                {product.name}
-            </h1>
-
-            <p>
-                Price: {product.price}
-            </p>
-
-            <p>
-                Category: {product.category}
-            </p>
-            <Link to={`/products/${id}/edit`}>
-                Edit Product
-            </Link>
+            <button onClick={() => navigate("/products")}>Back to Products</button>
 
         </div>
     );
 }
-
 
 export default ProductDetail;

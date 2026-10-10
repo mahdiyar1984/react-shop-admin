@@ -10,10 +10,13 @@ function AddProduct() {
 
     async function handleSubmit(product) {
         try {
+            console.log("PRODUCT TO SEND:", product);
             await createProduct(product);
+            console.log("PRODUCT CREATED");
             navigate("/products");
         } 
         catch (error) {
+            console.error("ADD PRODUCT ERROR:", error);
         }
     }
 

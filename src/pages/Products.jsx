@@ -5,13 +5,13 @@ import ProductList from "../components/ProductList";
 
 function Products() {
 
-    const { data: products, loading, error, execute: refreshProducts } = useFetch(getProducts);
+    const { data: products, loading, error, updateData } = useFetch(getProducts);
     const { execute: deleteProduct, loading: deleting, error: deleteError } = useMutation(deleteProductApi);
 
     async function handleDelete(id) {
         try {
             await deleteProduct(id);
-            await refreshProducts();
+            updateData(prev => prev.filter(product => product.id !== id));
         }
         catch (error) {
             // useMutation خطا را مدیریت کرده است.

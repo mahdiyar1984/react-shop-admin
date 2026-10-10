@@ -27,13 +27,11 @@ function useFetch(fetchFunction, options = {}) {
                 setData(result);
                 return result;
             }
-
             catch (error) {
                 if (error.name === "AbortError") { return; }
                 setError(error.message);
                 throw error;
             }
-
             finally {
                 if (!controller.signal.aborted) {
                     setLoading(false);
@@ -43,10 +41,19 @@ function useFetch(fetchFunction, options = {}) {
         }, [fetchFunction, request]
     );
 
+    const updateData = useCallback(
+        (updater) => {
+
+            setData(updater);
+
+        },
+        []
+    );
+
     useEffect(() => {
         if (!immediate) { return; }
 
-        execute();
+        execute().catch(() => {});
 
         return () => {
             if (controllerRef.current) {
@@ -55,6 +62,6 @@ function useFetch(fetchFunction, options = {}) {
         };
     }, [execute, immediate]);
 
-    return { data, loading, error, execute };
+    return { data, loading, error, execute, updateData };
 }
 export default useFetch;
