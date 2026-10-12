@@ -140,11 +140,7 @@ function ProductProvider({ children }) {
 
 export function useProducts() {
     useContext(ProductContext);
-    if (!context) {
-        throw new Error("useProducts must be used inside ProductProvider");
-    }
-
-
+    if (!context) { throw new Error("useProducts must be used inside ProductProvider"); }
     return context;
 }
 
