@@ -1,133 +1,67 @@
-import { createContext, useCallback, useContext, useState } from "react";
-import ProductContext from "./ProductContext";
-import useApi from "../hooks/useApi";
-import { getProducts, createProduct, updateProduct, deleteProduct } from "../api/productsApi";
+import {createContext, useContext} from "react";
+import useQuery from "../hooks/useQuery";
+import useMutation from "../hooks/useMutation";
+import {getProducts, createProduct, updateProduct, deleteProduct} from "../api/productsApi";
 
 const ProductContext = createContext(null);
 
-function ProductProvider({ children }) {
+const PRODUCTS_QUERY_KEY = ["products"];
 
-    const { request } = useApi();
-    const [products, setProducts] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [creating, setCreating] = useState(false);
-    const [updating, setUpdating] = useState(false);
-    const [deleting, setDeleting] = useState(false);
-    const [error, setError] = useState("");
-    const [actionError, setActionError] = useState("");
+export function ProductProvider({children}) {
+    const productsQuery = useQuery(PRODUCTS_QUERY_KEY, getProducts);
+    const createMutation = useMutation(createProduct);
+    const updateMutation = useMutation(updateProduct);
+    const deleteMutation = useMutation(deleteProduct);
 
-    // GET
-    const fetchProducts = useCallback(
-        async () => {
-            try {
-                setLoading(true);
-                setError("");
-                const data = await getProducts(request);
-                setProducts(data);
-                return data;
-            }
-            catch (error) {
-                setError(error.message);
-                throw error;
-            }
-            finally {
-                setLoading(false);
-            }
-        },
-        [request]
-    );
+    async function addProduct(product) {
+        const newProduct = await createMutation.execute(product);
+        productsQuery.setQueryData(
+            prev => [
+                ...(prev || []),
+                newProduct
+            ]
+        );
+        return newProduct;
+    }
 
-    // POST
-    const addProduct = useCallback(
-        async (product) => {
-            try {
-                setCreating(true);
-                setActionError("");
-                const newProduct =
-                    await createProduct(request, product);
-                setProducts(prev => [
-                    ...prev,
-                    newProduct
-                ]);
-                return newProduct;
-            }
-            catch (error) {
-                setActionError(error.message);
-                throw error;
-            }
-            finally {
-                setCreating(false);
-            }
-        },
-        [request]
-    );
+    async function editProduct(id, product) {
+        const updatedProduct = await updateMutation.execute(id, product);
+        productsQuery.setQueryData(
+            prev =>
+                (prev || []).map(item =>
+                    item.id ===
+                    updatedProduct.id
+                        ? updatedProduct
+                        : item
+                )
+        );
+        return updatedProduct;
+    }
 
-    // PATCH
-    const editProduct = useCallback(
-        async (id, product) => {
-            try {
-                setUpdating(true);
-                setActionError("");
-                const updatedProduct = await updateProduct(request, id, product);
-                setProducts(prev =>
-                    prev.map(item =>
-                        item.id === updatedProduct.id
-                            ? updatedProduct
-                            : item
-                    )
-                );
-                return updatedProduct;
-            }
-            catch (error) {
-                setActionError(error.message);
-                throw error;
-            }
-            finally {
-                setUpdating(false);
-            }
-        },
-        [request]
-    );
-
-    // DELETE
-    const removeProduct = useCallback(
-        async (id) => {
-            try {
-                setDeleting(true);
-                setActionError("");
-                await deleteProduct(request, id);
-                setProducts(prev =>
-                    prev.filter(
-                        item => item.id !== id
-                    )
-                );
-            }
-            catch (error) {
-                setActionError(error.message);
-                throw error;
-            }
-            finally {
-                setDeleting(false);
-            }
-        },
-        [request]
-    );
-
+    async function removeProduct(id) {
+        await deleteMutation.execute(id);
+        productsQuery.setQueryData(
+            prev =>
+                (prev || []).filter(
+                    item => item.id !== id
+                )
+        );
+    }
 
     return (
         <ProductContext.Provider
             value={{
-                products,
+                products: productsQuery.data || [],
+                loading: productsQuery.loading,
+                error: productsQuery.error,
+                refetch: productsQuery.refetch,
+                creating: createMutation.loading,
+                createError: createMutation.error,
+                updating: updateMutation.loading,
+                updateError: updateMutation.error,
+                deleting: deleteMutation.loading,
+                deleteError: deleteMutation.error,
 
-                loading,
-                creating,
-                updating,
-                deleting,
-
-                error,
-                actionError,
-
-                fetchProducts,
                 addProduct,
                 editProduct,
                 removeProduct
@@ -139,9 +73,7 @@ function ProductProvider({ children }) {
 }
 
 export function useProducts() {
-    useContext(ProductContext);
-    if (!context) { throw new Error("useProducts must be used inside ProductProvider"); }
+    const context = useContext(ProductContext);
+    if (!context) { throw new Error("useProducts must be used inside ProductProvider");}
     return context;
 }
-
-export default ProductProvider;

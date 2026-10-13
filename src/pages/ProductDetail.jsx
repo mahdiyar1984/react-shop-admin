@@ -1,19 +1,28 @@
-import {Link, useParams} from "react-router-dom";
-import {useProducts} from "../context/ProductContext";
+import { useParams } from "react-router-dom";
+import useQuery from "../hooks/useQuery";
+import {getProduct} from "../api/productsApi";
 
 function ProductDetail() {
     const { id } = useParams();
-    const {products, loading} = useProducts();
-    const product = products.find(item => item.id === Number(id));
-    if (loading && products.length === 0) {return (<p>Loading...</p>);}
-    if (!product) {return (<p>Product not found.</p>);}
+    const productQuery = useQuery(["products", Number(id)], getProduct, Number(id));
+
+    const {data: product, loading, error} = productQuery;
+
+    if (loading) { return <p>Loading...</p>;}
+    if (error) { return <p>Error: {error}</p>;}
+    if (!product) {return <p>Product not found.</p>;}
 
     return (
         <div>
             <h1>{product.name}</h1>
-            <p>Price: {product.price}</p>
-            
-            <Link to={`/products/${product.id}/edit`}>Edit</Link>
+
+            <p>
+                Price: {product.price}
+            </p>
+
+            <p>
+                Category: {product.category}
+            </p>
         </div>
     );
 }
