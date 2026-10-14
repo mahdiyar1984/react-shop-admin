@@ -1,45 +1,104 @@
-import {useParams, useNavigate} from "react-router-dom";
+
+import { useEffect, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import ProductForm from "../components/ProductForm";
-import {useProducts} from "../context/ProductContext";
+import { useProducts } from "../context/ProductContext";
+import { useQueryClient } from "../query/QueryClientContext";
+import { getProduct } from "../api/productsApi";
 
 function EditProduct() {
-
     const { id } = useParams();
+    const productId = Number(id);
     const navigate = useNavigate();
-    const {products, loading, updating, actionError, editProduct} = useProducts();
-    const product = products.find(item => item.id === Number(id));
+    const queryClient = useQueryClient();
 
-     async function handleSubmit(data) {
-        try {
-            await editProduct(Number(id), data);
-            navigate("/products");
-        } 
-        catch (error) {
-            // خطا در actionError قرار گرفته است.
+    const {
+        products,
+        editProduct,
+        updating,
+        updateError,
+    } = useProducts();
+
+    const [product, setProduct] = useState(null);
+    const [loadingProduct, setLoadingProduct] = useState(true);
+    const [loadError, setLoadError] = useState("");
+
+    useEffect(() => {
+        let cancelled = false;
+
+        async function loadProduct() {
+            setLoadingProduct(true);
+            setLoadError("");
+
+            try {
+                const cachedProduct = products.find(
+                    item => item.id === productId
+                );
+
+                const result =
+                    cachedProduct ||
+                    queryClient.getQueryData(["products", productId]) ||
+                    await queryClient.fetchQuery(
+                        ["products", productId],
+                        () => getProduct(null, productId),
+                        [],
+                        { staleTime: 30_000, cacheTime: 300_000 }
+                    );
+
+                if (!cancelled) {
+                    setProduct(result);
+                }
+            } catch (err) {
+                if (!cancelled) {
+                    setLoadError(
+                        err?.message || "دریافت محصول ناموفق بود."
+                    );
+                }
+            } finally {
+                if (!cancelled) {
+                    setLoadingProduct(false);
+                }
+            }
         }
+
+        loadProduct();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [productId, products, queryClient]);
+
+    async function handleUpdateProduct(data) {
+        await editProduct(productId, data);
+        navigate("/products");
     }
 
-    if (loading && products.length === 0) {
-        return (
-            <p>
-                Loading products...
-            </p>
-        );
+    if (loadingProduct) {
+        return <p dir="rtl">در حال دریافت اطلاعات محصول...</p>;
     }
-    if (!product) {
+
+    if (loadError || !product) {
         return (
-            <p>
-                Product not found.
-            </p>
+            <main dir="rtl">
+                <p role="alert">{loadError || "محصول پیدا نشد."}</p>
+                <Link to="/products">بازگشت به محصولات</Link>
+            </main>
         );
     }
 
     return (
-        <div>
-            <h1>Edit Product</h1>
-            {actionError  && (<p>{actionError }</p>)}
-            <ProductForm initialData={product} onSubmit={handleSubmit} loading={updating} />
-        </div>
+        <main dir="rtl">
+            <h1>ویرایش محصول</h1>
+
+            <ProductForm
+                initialData={product}
+                onSubmit={handleUpdateProduct}
+                loading={updating}
+                error={updateError}
+                submitText="ذخیره تغییرات"
+            />
+        </main>
     );
 }
+
 export default EditProduct;

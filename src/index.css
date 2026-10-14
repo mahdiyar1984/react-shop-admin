@@ -51,7 +51,7 @@
 }
 
 body {
-  margin: 0;
+  margin: 0 ;
 }
 
 #root {
@@ -109,3 +109,5 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+

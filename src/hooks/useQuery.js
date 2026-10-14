@@ -1,95 +1,157 @@
+
 import {
     useCallback,
     useEffect,
-    useRef,
-    useState
+    useMemo,
+    useState,
 } from "react";
 
 import useApi from "./useApi";
 import { useQueryClient } from "../query/QueryClientContext";
 
-function useQuery(queryKey, queryFunction, ...initialArgs) {
-    const { request } = useApi();
+const OPTION_KEYS = [
+    "enabled",
+    "staleTime",
+    "cacheTime",
+    "retry",
+    "retryDelay",
+];
+
+function useQuery(queryKey, queryFunction, ...inputArgs) {
     const queryClient = useQueryClient();
-    const [data, setData] = useState(() => queryClient.getQueryData(queryKey) ?? null);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState("");
-    const controllerRef = useRef(null);
+    const { request } = useApi();
+
+    const lastArg = inputArgs[inputArgs.length - 1];
+
+    const hasOptions =
+        lastArg !== null &&
+        typeof lastArg === "object" &&
+        !Array.isArray(lastArg) &&
+        OPTION_KEYS.some((key) =>
+            Object.prototype.hasOwnProperty.call(lastArg, key)
+        );
+
+    const options = hasOptions ? inputArgs.pop() : {};
+    const args = inputArgs;
+
+    const stableKey = JSON.stringify(queryKey);
+
+    const actualKey = useMemo(
+        () => JSON.parse(stableKey),
+        [stableKey]
+    );
+
+    const stableArgs = useMemo(
+        () => args,
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [stableKey, ...args]
+    );
+
+    const enabled = options.enabled ?? true;
+    const staleTime = options.staleTime;
+    const cacheTime = options.cacheTime;
+    const retry = options.retry;
+    const retryDelay = options.retryDelay;
 
     const execute = useCallback(
-        async (...args) => {
-            if (controllerRef.current) { controllerRef.current.abort(); }
-            const controller = new AbortController();
-            controllerRef.current = controller;
-            try {
-                setLoading(true);
-                setError("");
-                const result = await queryFunction(request, ...args, controller.signal);
-                if (controller.signal.aborted) { return; }
-                queryClient.setQueryData(queryKey, result);
-                setData(result);
-                return result;
-            }
-            catch (error) {
-                if (error.name === "AbortError") { return; }
-                setError(error.message);
-                throw error;
-            }
-            finally {
-                if (!controller.signal.aborted) { setLoading(false); }
-            }
+        (executeOptions = {}) => {
+            const queryFunctionWithSignal = (signal, ...queryArgs) => {
+                const requestWithSignal = (url, requestOptions = {}) => request(url, { ...requestOptions, signal});
+                return queryFunction(requestWithSignal, ...queryArgs);
+            };
+
+            const settings = {
+                staleTime,
+                cacheTime,
+                retry,
+                retryDelay,
+                ...executeOptions,
+                queryFunction: queryFunctionWithSignal,
+                args: stableArgs,
+            };
+
+            queryClient.queryOptions.set(stableKey, {
+                ...queryClient.defaultOptions,
+                ...settings,
+            });
+
+            return queryClient.fetchQuery(
+                actualKey,
+                queryFunctionWithSignal,
+                stableArgs,
+                settings
+            );
         },
-        [queryClient, queryKey, queryFunction, request]
+        [
+            queryClient,
+            stableKey,
+            queryFunction,
+            request,
+            stableArgs,
+            staleTime,
+            cacheTime,
+            retry,
+            retryDelay,
+        ]
+    );
+
+    const [state, setState] = useState(
+        () => queryClient.getQueryState(actualKey)
     );
 
     useEffect(() => {
-        const unsubscribe =
-            queryClient.subscribe(queryKey, () => {
-                const cachedData = queryClient.getQueryData(queryKey);
-                setData(cachedData ?? null);
-            }
-            );
+        const unsubscribe = queryClient.subscribe(
+            actualKey,
+            setState
+        );
 
-        return unsubscribe;
-    }, [queryClient, queryKey]);
-
-    useEffect(() => {
-        const cachedData = queryClient.getQueryData(queryKey);
-
-        if (cachedData !== undefined) {
-            setData(cachedData);
-            return;
+        if (enabled) {
+            execute().catch(() => {
+                // خطا در وضعیت همین Query ذخیره می‌شود.
+            });
         }
 
-        execute(...initialArgs).catch(() => { });
+        return unsubscribe;
+    }, [
+        queryClient,
+        stableKey,
+        execute,
+        enabled,
+    ]);
 
-        return () => {
-            if (controllerRef.current) {
-                controllerRef.current.abort();
-            }
-        };
-    }, [queryClient, queryKey, execute]);
+    const refetch = useCallback(
+        () => execute({ force: true }),
+        [execute]
+    );
 
-    const setQueryData =
-        useCallback(
-            updater => { return queryClient.setQueryData(queryKey, updater);},
-            [queryClient, queryKey]
-        );
+    const cancel = useCallback(
+        () => queryClient.cancelQuery(actualKey),
+        [queryClient, stableKey]
+    );
 
-    const invalidateQuery =
-        useCallback(
-            () => {queryClient.invalidateQuery(queryKey);},
-            [queryClient, queryKey]
-        );
+    const setQueryData = useCallback(
+        (updater) =>
+            queryClient.setQueryData(actualKey, updater),
+        [queryClient, stableKey]
+    );
+
+    const invalidateQuery = useCallback(
+        () => queryClient.invalidateQuery(actualKey),
+        [queryClient, stableKey]
+    );
 
     return {
-        data,
-        loading,
-        error,
+        data: state.data,
+        loading: state.loading,
+        error: state.error,
+        cancelled: state.cancelled,
+        stale: state.stale,
+        enabled,
         execute,
-        refetch: execute,
+        refetch,
+        cancel,
         setQueryData,
-        invalidateQuery
+        invalidateQuery,
     };
 }
 
