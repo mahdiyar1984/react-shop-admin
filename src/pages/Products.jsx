@@ -1,115 +1,80 @@
-
+import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useProducts } from "../context/ProductContext";
+
+import { useQueryClient } from "../query/QueryClientContext";
+import { getProducts } from "../api/productsApi";
+import useQuery from "../hooks/useQuery";
+import useProductMutations from "../hooks/useProductMutations";
+
+import ProductList from "../components/ProductList";
+
+import LoadingState from "../components/LoadingState";
+import ApiError from "../components/ApiError";
+import MutationError from "../components/MutationError";
 
 function Products() {
-    const {
-        products,
-        loading,
-        error,
-        refetch,
-        removeProduct,
-        deleting,
-        deleteError,
-    } = useProducts();
+    const queryClient = useQueryClient();
+    const [deletingId, setDeletingId] = useState(null);
+    const { data, loading, fetching, error, refetch } = useQuery(["products"], getProducts);
+    const { remove, deleteMutation } = useProductMutations(queryClient);
 
-    async function handleDelete(id) {
-        if (!window.confirm("آیا از حذف این محصول مطمئن هستید؟")) {
-            return;
-        }
+    const products = useMemo(() => {
+        if (Array.isArray(data)) { return data; }
+        if (data && Array.isArray(data.results)) { return data.results; }
+        return [];
+    }, [data]);
 
-        try {
-            await removeProduct(id);
-        } catch {
-            // خطا از طریق deleteError نمایش داده می‌شود.
-        }
-    }
+    const handleDelete = useCallback(
+        async (id) => {
+            const confirmed = window.confirm("آیا از حذف این محصول مطمئن هستید؟");
 
-    if (loading && products.length === 0) {
+            if (!confirmed) { return; }
+            setDeletingId(id);
+
+            try {await remove(id);}
+            catch {}
+            finally {setDeletingId(null);}
+        }, [remove]
+    );
+
+    const handleRetry = useCallback(() => {
+        refetch();
+    }, [refetch]);
+
+    if (!data && loading) {
         return (
-            <main dir="rtl">
-                <p>در حال دریافت محصولات...</p>
+            <main>
+                <h1>محصولات</h1>
+                <LoadingState message="در حال دریافت محصولات..."/>
             </main>
         );
     }
 
-    if (error && products.length === 0) {
+    if (error && !data) {
         return (
-            <main dir="rtl">
-                <p role="alert">خطا در دریافت محصولات: {error}</p>
-
-                <button onClick={() => refetch()}>
-                    تلاش مجدد
-                </button>
+            <main>
+                <h1>محصولات</h1>
+                <ApiError error={error} onRetry={handleRetry} title="دریافت محصولات ناموفق بود" />
             </main>
         );
     }
 
     return (
-        <main className="products-page" dir="rtl">
-            <h1>مدیریت محصولات</h1>
-
-            <Link to="/products/add">افزودن محصول جدید</Link>
-
-            {loading && products.length > 0 && (
-                <p>در حال به‌روزرسانی محصولات...</p>
-            )}
-
-            {error && products.length > 0 && (
-                <div role="alert">
-                    <p>به‌روزرسانی ناموفق بود: {error}</p>
-                    <button onClick={() => refetch()}>
-                        تلاش مجدد
-                    </button>
+        <main>
+            <header className="page-header">
+                <div>
+                    <h1>محصولات</h1>
+                    {fetching && (
+                        <small>
+                            در حال به‌روزرسانی...
+                        </small>
+                    )}
                 </div>
-            )}
+                <Link to="/products/add">افزودن محصول</Link>
+            </header>
 
-            {deleteError && (
-                <p role="alert">خطا در حذف: {deleteError}</p>
-            )}
-
-            {products.length === 0 ? (
-                <p>محصولی ثبت نشده است.</p>
-            ) : (
-                <table>
-                    <thead>
-                        <tr>
-                            <th>شناسه</th>
-                            <th>نام محصول</th>
-                            <th>قیمت</th>
-                            <th>دسته‌بندی</th>
-                            <th>عملیات</th>
-                        </tr>
-                    </thead>
-
-                    <tbody>
-                        {products.map(product => (
-                            <tr key={product.id}>
-                                <td>{product.id}</td>
-                                <td>{product.name}</td>
-                                <td>{product.price}</td>
-                                <td>{product.category}</td>
-                                <td>
-                                    <Link to={`/products/${product.id}`}>
-                                        مشاهده
-                                    </Link>
-                                    {" | "}
-                                    <Link to={`/products/${product.id}/edit`}>
-                                        ویرایش
-                                    </Link>
-                                    {" | "}
-                                    <button
-                                        disabled={deleting}
-                                        onClick={() => handleDelete(product.id)}
-                                    >
-                                        حذف
-                                    </button>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            )}
+            <MutationError error={deleteMutation.error} onDismiss={deleteMutation.reset} />
+            <ProductList products={products} onDelete={handleDelete} deletingId={deletingId}/>
         </main>
     );
 }

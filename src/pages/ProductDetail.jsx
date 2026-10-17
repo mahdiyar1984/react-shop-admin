@@ -1,142 +1,160 @@
-
-import { Link, useParams } from "react-router-dom";
-import useQuery from "../hooks/useQuery";
 import {
-    getProducts,
+    useCallback,
+} from "react";
+
+import {
+    Link,
+    useNavigate,
+    useParams,
+} from "react-router-dom";
+
+import useQuery from "../hooks/useQuery";
+import useProductMutations from "../hooks/useProductMutations";
+
+import {
+    useQueryClient,
+} from "../query/QueryClientContext";
+
+import {
     getProduct,
 } from "../api/productsApi";
 
+import LoadingState from "../components/LoadingState";
+import ApiError from "../components/ApiError";
+import MutationError from "../components/MutationError";
+
 function ProductDetail() {
     const { id } = useParams();
-    const productId = Number(id);
+    const navigate = useNavigate();
 
-    // Query اول: دریافت فهرست محصولات
-    const productsQuery = useQuery(
-        ["products"],
-        getProducts,
-        {
-            staleTime: 30_000,
-            cacheTime: 300_000,
-            retry: 2,
-            retryDelay: 500,
-        }
-    );
+    const queryClient = useQueryClient();
 
-    // Query دوم: دریافت جزئیات محصول
-    const productQuery = useQuery(
-        ["products", productId],
+    const {
+        data: product,
+        loading,
+        fetching,
+        error,
+        refetch,
+    } = useQuery(
+        ["product", id],
         getProduct,
-        productId,
-        {
-            enabled:
-                Number.isInteger(productId) &&
-                productId > 0,
-            staleTime: 30_000,
-            cacheTime: 300_000,
-            retry: 2,
-            retryDelay: 500,
-        }
+        id
     );
 
-    const product = productQuery.data;
-    const products = productsQuery.data || [];
+    const {
+        remove,
+        deleteMutation,
+    } = useProductMutations(queryClient);
 
-    // این بخش به نتیجه هر دو Query وابسته است.
-    const relatedProducts =
-        product && productsQuery.data
-            ? products.filter(
-                  (item) =>
-                      item.category === product.category &&
-                      Number(item.id) !== productId
-              )
-            : [];
+    const handleDelete = useCallback(
+        async () => {
+            const confirmed = window.confirm(
+                "آیا از حذف این محصول مطمئن هستید؟"
+            );
+
+            if (!confirmed) {
+                return;
+            }
+
+            try {
+                await remove(id);
+
+                navigate("/products");
+            } catch {
+                // خطا در Mutation نمایش داده می‌شود.
+            }
+        },
+        [id, remove, navigate]
+    );
+
+    if (!product && loading) {
+        return (
+            <main>
+                <LoadingState
+                    message="در حال دریافت محصول..."
+                />
+            </main>
+        );
+    }
+
+    if (error && !product) {
+        return (
+            <main>
+                <ApiError
+                    error={error}
+                    onRetry={refetch}
+                    title="دریافت محصول ناموفق بود"
+                />
+            </main>
+        );
+    }
+
+    if (!product) {
+        return (
+            <main>
+                <h1>محصول پیدا نشد</h1>
+
+                <Link to="/products">
+                    بازگشت به محصولات
+                </Link>
+            </main>
+        );
+    }
 
     return (
         <main>
-            <h1>جزئیات محصول</h1>
+            <header>
+                <h1>{product.name}</h1>
 
-            {/* وضعیت Query جزئیات محصول */}
+                {fetching && (
+                    <small>
+                        در حال به‌روزرسانی...
+                    </small>
+                )}
+            </header>
+
             <section>
-                <h2>اطلاعات محصول</h2>
+                <p>
+                    قیمت: {product.price}
+                </p>
 
-                {productQuery.loading && !product && (
-                    <p>در حال دریافت اطلاعات محصول...</p>
-                )}
-
-                {productQuery.error && (
-                    <div>
-                        <p>
-                            خطای دریافت محصول:{" "}
-                            {productQuery.error.message}
-                        </p>
-
-                        <button onClick={productQuery.refetch}>
-                            تلاش دوباره
-                        </button>
-                    </div>
-                )}
-
-                {product && (
-                    <>
-                        <h3>{product.name}</h3>
-                        <p>شناسه: {product.id}</p>
-                        <p>قیمت: {product.price}</p>
-                        <p>دسته‌بندی: {product.category}</p>
-                    </>
-                )}
+                <p>
+                    دسته‌بندی: {product.category}
+                </p>
             </section>
 
-            <hr />
+            <MutationError
+                error={deleteMutation.error}
+                onDismiss={deleteMutation.reset}
+            />
 
-            {/* وضعیت مستقل Query فهرست محصولات */}
-            <section>
-                <h2>محصولات هم‌دسته</h2>
-
-                {productsQuery.loading && (
-                    <p>در حال دریافت فهرست محصولات...</p>
-                )}
-
-                {productsQuery.error && (
-                    <div>
-                        <p>
-                            خطای دریافت فهرست:{" "}
-                            {productsQuery.error.message}
-                        </p>
-
-                        <button onClick={productsQuery.refetch}>
-                            تلاش دوباره
-                        </button>
-                    </div>
-                )}
-
-                {product &&
-                    productsQuery.data &&
-                    relatedProducts.length === 0 && (
-                        <p>
-                            محصول دیگری در این دسته‌بندی پیدا نشد.
-                        </p>
-                    )}
-
-                {product && productsQuery.data && (
-                    <ul>
-                        {relatedProducts.map((item) => (
-                            <li key={item.id}>
-                                <Link to={`/products/${item.id}`}>
-                                    {item.name}
-                                </Link>
-                                {" — "}
-                                {item.price}
-                            </li>
-                        ))}
-                    </ul>
-                )}
-            </section>
-
-            <p>
-                <Link to="/products">
-                    بازگشت به فهرست محصولات
+            <div>
+                <Link
+                    to={`/products/${id}/edit`}
+                >
+                    ویرایش
                 </Link>
-            </p>
+
+                {" "}
+
+                <button
+                    type="button"
+                    onClick={handleDelete}
+                    disabled={
+                        deleteMutation.loading
+                    }
+                >
+                    {deleteMutation.loading
+                        ? "در حال حذف..."
+                        : "حذف محصول"}
+                </button>
+
+                {" "}
+
+                <Link to="/products">
+                    بازگشت
+                </Link>
+            </div>
         </main>
     );
 }

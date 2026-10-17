@@ -1,24 +1,30 @@
-
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
 import useQueries from "../hooks/useQueries";
-import useApi from "../hooks/useApi";
-
-const API_URL = "http://localhost:8000/api/products/";
+import { getProduct } from "../api/productsApi";
 
 function MultipleProducts() {
-    const [ids, setIds] = useState([1, 2, 3]);
+    const [ids, setIds] = useState([2, 3]);
     const [newId, setNewId] = useState("");
-
-    const { request } = useApi();
 
     const queries = ids.map((id) => ({
         queryKey: ["products", Number(id)],
-        queryFn: () =>
-            request(`${API_URL}${Number(id)}/`),
-        args: [],
-        enabled: Number.isInteger(Number(id)) && Number(id) > 0,
+
+        queryFn: getProduct,
+
+        args: [Number(id)],
+
+        enabled:
+            Number.isInteger(Number(id)) &&
+            Number(id) > 0,
+
+        options: {
+            staleTime: 30_000,
+            cacheTime: 300_000,
+            retry: 2,
+            retryDelay: 500,
+        },
     }));
 
     const results = useQueries(queries);
@@ -26,26 +32,32 @@ function MultipleProducts() {
     function addProductId() {
         const id = Number(newId);
 
-        if (!Number.isInteger(id) || id <= 0) return;
+        if (!Number.isInteger(id) || id <= 0) {
+            return;
+        }
 
-        setIds((previous) =>
-            previous.includes(id)
-                ? previous
-                : [...previous, id]
-        );
+        setIds((previous) => {
+            if (previous.includes(id)) {
+                return previous;
+            }
+
+            return [...previous, id];
+        });
 
         setNewId("");
     }
 
     function removeProductId(id) {
         setIds((previous) =>
-            previous.filter((item) => item !== id)
+            previous.filter(
+                (item) => item !== id
+            )
         );
     }
 
     return (
         <main>
-            <h1>مدیریت چند Query هم‌زمان</h1>
+            <h1>محصولات با Query پویا</h1>
 
             <div>
                 <input
@@ -53,66 +65,133 @@ function MultipleProducts() {
                     min="1"
                     value={newId}
                     onChange={(event) =>
-                        setNewId(event.target.value)
+                        setNewId(
+                            event.target.value
+                        )
                     }
                     placeholder="شناسه محصول"
                 />
 
-                <button onClick={addProductId}>
-                    افزودن محصول
+                <button
+                    onClick={addProductId}
+                >
+                    افزودن Query
                 </button>
             </div>
 
-            <section>
-                {results.map((result, index) => {
-                    const id = ids[index];
+            <hr />
 
-                    return (
-                        <article key={result.queryKey}>
-                            <h2>محصول شماره {id}</h2>
+            {results.map((result, index) => {
+                const id = ids[index];
 
-                            {result.loading && (
-                                <p>در حال دریافت اطلاعات...</p>
-                            )}
+                return (
+                    <article
+                        key={JSON.stringify(
+                            result.queryKey
+                        )}
+                    >
+                        <h2>
+                            محصول شماره {id}
+                        </h2>
 
-                            {result.error && (
+                        {result.loading && (
+                            <p>
+                                در حال دریافت...
+                            </p>
+                        )}
+
+                        {result.error && (
+                            <div>
                                 <p>
-                                    خطا: {result.error.message}
+                                    خطا:{" "}
+                                    {
+                                        result.error
+                                            .message
+                                    }
                                 </p>
-                            )}
 
-                            {result.data && (
-                                <>
-                                    <p>
-                                        نام: {result.data.name}
-                                    </p>
+                                <button
+                                    onClick={
+                                        result.refetch
+                                    }
+                                >
+                                    تلاش دوباره
+                                </button>
+                            </div>
+                        )}
 
-                                    <p>
-                                        قیمت: {result.data.price}
-                                    </p>
+                        {result.cancelled && (
+                            <p>
+                                درخواست لغو شد.
+                            </p>
+                        )}
 
-                                    <p>
-                                        دسته‌بندی:{" "}
-                                        {result.data.category}
-                                    </p>
+                        {result.data && (
+                            <>
+                                <p>
+                                    نام:{" "}
+                                    {
+                                        result.data
+                                            .name
+                                    }
+                                </p>
 
-                                    <Link to={`/products/${id}`}>
-                                        مشاهده جزئیات
-                                    </Link>
-                                </>
-                            )}
+                                <p>
+                                    قیمت:{" "}
+                                    {
+                                        result.data
+                                            .price
+                                    }
+                                </p>
 
-                            <button
-                                onClick={() =>
-                                    removeProductId(id)
-                                }
-                            >
-                                حذف از فهرست
-                            </button>
-                        </article>
-                    );
-                })}
-            </section>
+                                <p>
+                                    دسته‌بندی:{" "}
+                                    {
+                                        result.data
+                                            .category
+                                    }
+                                </p>
+
+                                <button
+                                    onClick={
+                                        result.refetch
+                                    }
+                                >
+                                    دریافت مجدد
+                                </button>
+
+                                <button
+                                    onClick={() =>
+                                        result.cancel()
+                                    }
+                                >
+                                    لغو درخواست
+                                </button>
+
+                                <br />
+
+                                <Link
+                                    to={`/products/${id}`}
+                                >
+                                    مشاهده جزئیات
+                                </Link>
+                            </>
+                        )}
+
+                        <br />
+
+                        <button
+                            onClick={() =>
+                                removeProductId(id)
+                            }
+                        >
+                            حذف Query
+                        </button>
+
+                        <hr />
+                    </article>
+                );
+            })}
         </main>
     );
 }

@@ -1,0 +1,113 @@
+/* ساختار کلی برنامه */
+#root {
+    width: 100%;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* نوار ناوبری */
+nav {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 18px 24px;
+    background: #ffffff;
+    border-bottom: 1px solid #ddd;
+}
+
+/* محتوای اصلی تمام صفحات */
+main {
+    width: 100%;
+    max-width: 1100px;
+    margin-left: auto;
+    margin-right: auto;
+    padding: 24px;
+    flex: 1;
+    text-align: center;
+}
+
+/* عنوان صفحه */
+.page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+/* داشبورد */
+.dashboard {
+    width: 100%;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 24px;
+}
+
+/* کارت‌های داشبورد */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+    width: 100%;
+}
+
+/* کارت آماری */
+.dashboard-card {
+    min-width: 0;
+    padding: 24px;
+    background: #ffffff;
+    border: 1px solid #e2e2e2;
+    border-radius: 12px;
+    text-align: center;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 5%);
+}
+
+.dashboard-card h2 {
+    margin-top: 0;
+    font-size: 18px;
+}
+
+.dashboard-card p {
+    margin-bottom: 0;
+    font-size: 24px;
+    font-weight: bold;
+}
+
+/* فوتر */
+footer {
+    width: 100%;
+    margin-top: auto;
+    padding: 24px;
+    text-align: center;
+    background: #ffffff;
+    border-top: 1px solid #ddd;
+}
+
+/* نمایش در تبلت */
+@media (max-width: 768px) {
+    .dashboard-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    main,
+    .dashboard {
+        padding: 16px;
+    }
+}
+
+/* نمایش در موبایل */
+@media (max-width: 480px) {
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+
+    nav {
+        gap: 10px;
+        padding: 14px;
+    }
+}

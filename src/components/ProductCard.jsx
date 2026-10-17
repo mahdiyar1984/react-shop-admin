@@ -1,15 +1,32 @@
+import { memo, useCallback } from "react";
 import { Link } from "react-router-dom";
 
-function ProductCard({ product, onDelete, deleting }) {
+function ProductCard({
+    product,
+    onDelete,
+    deleting = false,
+}) {
+    const handleDelete = useCallback(() => {
+        onDelete(product.id);
+    }, [onDelete, product.id]);
+
     return (
-        <div>
+        <article className="product-card">
             <h3>{product.name}</h3>
-            <p>Price: {product.price}</p>
-            <p>Category: {product.category}</p>
-            <Link to={`/products/${product.id}`}>View</Link>{" "}            
-            <Link to={`/products/${product.id}/edit`}>Edit</Link>{" "}
-            <button onClick={() => onDelete(product.id)} disabled={deleting}>{deleting ? "Deleting..." : "Delete"}</button>
-        </div>
+
+            <p> قیمت: {product.price} </p>
+
+            <p> دسته‌بندی: {product.category} </p>
+
+            <div className="product-card-actions">
+                <Link to={`/products/${product.id}`}>مشاهده</Link>
+                <Link to={`/products/${product.id}/edit`}>ویرایش</Link>
+                <button type="button" onClick={handleDelete} disabled={deleting}>
+                    {deleting ? "در حال حذف..." : "حذف"}
+                </button>
+            </div>
+        </article>
     );
 }
-export default ProductCard;
+
+export default memo(ProductCard);

@@ -1,11 +1,4 @@
-
-import {
-    useCallback,
-    useEffect,
-    useMemo,
-    useState,
-} from "react";
-
+import { useCallback, useEffect, useRef, useState,} from "react";
 import useApi from "./useApi";
 import { useQueryClient } from "../query/QueryClientContext";
 
@@ -17,138 +10,180 @@ const OPTION_KEYS = [
     "retryDelay",
 ];
 
-function useQuery(queryKey, queryFunction, ...inputArgs) {
+function isQueryOptions(value) {
+    return (
+        value !== null &&
+        typeof value === "object" &&
+        !Array.isArray(value) &&
+        OPTION_KEYS.some((key) =>  Object.prototype.hasOwnProperty.call(value, key)
+        )
+    );
+}
+
+function useQuery(queryKey, queryFn, ...params) {
     const queryClient = useQueryClient();
     const { request } = useApi();
 
-    const lastArg = inputArgs[inputArgs.length - 1];
+    const [version, setVersion] = useState(0);
 
-    const hasOptions =
-        lastArg !== null &&
-        typeof lastArg === "object" &&
-        !Array.isArray(lastArg) &&
-        OPTION_KEYS.some((key) =>
-            Object.prototype.hasOwnProperty.call(lastArg, key)
-        );
+    const queryKeyRef = useRef(queryKey);
+    const queryFnRef = useRef(queryFn);
+    const paramsRef = useRef(params);
 
-    const options = hasOptions ? inputArgs.pop() : {};
-    const args = inputArgs;
+    queryKeyRef.current = queryKey;
+    queryFnRef.current = queryFn;
+    paramsRef.current = params;
 
-    const stableKey = JSON.stringify(queryKey);
+    const lastParam = params[params.length - 1];
+    const hasOptions = isQueryOptions(lastParam);
 
-    const actualKey = useMemo(
-        () => JSON.parse(stableKey),
-        [stableKey]
-    );
+    const options = hasOptions ? lastParam : {};
+    const args = hasOptions ? params.slice(0, -1) : params;
 
-    const stableArgs = useMemo(
-        () => args,
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [stableKey, ...args]
-    );
+    const argsRef = useRef(args);
+    const optionsRef = useRef(options);
+
+    argsRef.current = args;
+    optionsRef.current = options;
+
+    const serializedKey = JSON.stringify(queryKey);
 
     const enabled = options.enabled ?? true;
-    const staleTime = options.staleTime;
-    const cacheTime = options.cacheTime;
-    const retry = options.retry;
-    const retryDelay = options.retryDelay;
 
     const execute = useCallback(
         (executeOptions = {}) => {
-            const queryFunctionWithSignal = (signal, ...queryArgs) => {
-                const requestWithSignal = (url, requestOptions = {}) => request(url, { ...requestOptions, signal});
-                return queryFunction(requestWithSignal, ...queryArgs);
+            const currentQueryFn = queryFnRef.current;
+
+            if (typeof currentQueryFn !== "function") {
+                return Promise.reject(
+                    new Error("تابع queryFn باید یک تابع معتبر باشد.")
+                );
+            }
+
+            const requestWithSignal = (url, requestOptions = {}) => {
+                return request(url, requestOptions);
             };
 
-            const settings = {
-                staleTime,
-                cacheTime,
-                retry,
-                retryDelay,
-                ...executeOptions,
-                queryFunction: queryFunctionWithSignal,
-                args: stableArgs,
-            };
+            const queryFunctionWithSignal = ({ signal }) => {
+                const requestWithAbort = (url, requestOptions = {}) =>
+                    request(url, {
+                        ...requestOptions,
+                        signal,
+                    });
 
-            queryClient.queryOptions.set(stableKey, {
-                ...queryClient.defaultOptions,
-                ...settings,
-            });
+                return currentQueryFn(
+                    requestWithAbort,
+                    ...argsRef.current
+                );
+            };
 
             return queryClient.fetchQuery(
-                actualKey,
+                queryKeyRef.current,
                 queryFunctionWithSignal,
-                stableArgs,
-                settings
+                {
+                    ...optionsRef.current,
+                    ...executeOptions,
+                }
             );
         },
-        [
-            queryClient,
-            stableKey,
-            queryFunction,
-            request,
-            stableArgs,
-            staleTime,
-            cacheTime,
-            retry,
-            retryDelay,
-        ]
-    );
-
-    const [state, setState] = useState(
-        () => queryClient.getQueryState(actualKey)
+        [queryClient, request]
     );
 
     useEffect(() => {
+        const currentKey = queryKeyRef.current;
+
+        queryClient.ensureQuery(currentKey, optionsRef.current);
+
         const unsubscribe = queryClient.subscribe(
-            actualKey,
-            setState
+            currentKey,
+            () => {
+                setVersion((current) => current + 1);
+            }
         );
 
-        if (enabled) {
-            execute().catch(() => {
-                // خطا در وضعیت همین Query ذخیره می‌شود.
-            });
+        return unsubscribe;
+    }, [queryClient, serializedKey]);
+
+    useEffect(() => {
+        if (!enabled) {
+            return;
         }
 
-        return unsubscribe;
+        const state = queryClient.getQueryState(
+            queryKeyRef.current
+        );
+
+        if (
+            !state ||
+            state.data === undefined ||
+            state.invalidated === true
+        ) {
+            execute().catch(() => {});
+        }
     }, [
         queryClient,
-        stableKey,
-        execute,
+        serializedKey,
         enabled,
+        execute,
     ]);
 
-    const refetch = useCallback(
-        () => execute({ force: true }),
-        [execute]
-    );
+    const state =
+        queryClient.getQueryState(queryKey) ?? {
+            data: undefined,
+            error: null,
+            status: "idle",
+            loading: false,
+            fetching: false,
+            updatedAt: 0,
+            staleTime: options.staleTime ?? 0,
+            invalidated: false,
+        };
 
-    const cancel = useCallback(
-        () => queryClient.cancelQuery(actualKey),
-        [queryClient, stableKey]
-    );
+    const refetch = useCallback(() => {
+        return execute({ force: true });
+    }, [execute]);
+
+    const cancel = useCallback(() => {
+        return queryClient.cancelQuery(queryKeyRef.current);
+    }, [queryClient]);
 
     const setQueryData = useCallback(
-        (updater) =>
-            queryClient.setQueryData(actualKey, updater),
-        [queryClient, stableKey]
+        (updater) => {
+            return queryClient.setQueryData(
+                queryKeyRef.current,
+                updater
+            );
+        },
+        [queryClient, serializedKey]
     );
 
-    const invalidateQuery = useCallback(
-        () => queryClient.invalidateQuery(actualKey),
-        [queryClient, stableKey]
-    );
+    const invalidateQuery = useCallback(() => {
+        return queryClient.invalidateQuery(queryKeyRef.current);
+    }, [queryClient, serializedKey]);
+
+    const stale =
+        state.data === undefined ||
+        state.invalidated === true ||
+        (
+            state.updatedAt > 0 &&
+            options.staleTime !== Infinity &&
+            Date.now() - state.updatedAt >=
+                (options.staleTime ?? state.staleTime ?? 0)
+        );
+
+    void version;
 
     return {
         data: state.data,
-        loading: state.loading,
-        error: state.error,
-        cancelled: state.cancelled,
-        stale: state.stale,
+        error: state.error ?? null,
+        status: state.status ?? "idle",
+        loading: state.loading ?? false,
+        fetching: state.fetching ?? false,
+        cancelled: false,
+        stale,
         enabled,
-        execute,
         refetch,
+        execute: refetch,
         cancel,
         setQueryData,
         invalidateQuery,

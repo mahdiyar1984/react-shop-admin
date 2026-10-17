@@ -1,5 +1,11 @@
+// src/context/ProductContext.jsx
 
-import { createContext, useContext } from "react";
+import {
+    createContext,
+    useCallback,
+    useContext,
+    useMemo,
+} from "react";
 
 import useQuery from "../hooks/useQuery";
 import useMutation from "../hooks/useMutation";
@@ -14,8 +20,303 @@ import {
 import { useQueryClient } from "../query/QueryClientContext";
 
 const ProductContext = createContext(null);
+const PRODUCTS_STALE_TIME = 30_000;
+const PRODUCTS_CACHE_TIME = 300_000;
 
 export const PRODUCTS_QUERY_KEY = ["products"];
+
+export const INFINITE_PRODUCTS_QUERY_KEY = [
+    "products",
+    "infinite",
+];
+
+const mutationQueues = new Map();
+
+function productKey(id) {
+    return ["products", Number(id)];
+}
+
+function isAbortError(error) {
+    return (
+        error?.name === "AbortError" ||
+        error?.name === "CanceledError"
+    );
+}
+
+function enqueueMutation(key, task) {
+    const previous =
+        mutationQueues.get(key) || Promise.resolve();
+
+    const current = previous
+        .catch(() => { })
+        .then(task);
+
+    mutationQueues.set(key, current);
+
+    return current.finally(() => {
+        if (mutationQueues.get(key) === current) {
+            mutationQueues.delete(key);
+        }
+    });
+}
+
+function getData(queryClient, key) {
+    return queryClient.getQueryState(key)?.data;
+}
+
+function updateProductInArray(products, id, updater) {
+    if (!Array.isArray(products)) {
+        return products;
+    }
+
+    return products.map((product) =>
+        Number(product.id) === Number(id)
+            ? updater(product)
+            : product
+    );
+}
+
+function removeProductFromArray(products, id) {
+    if (!Array.isArray(products)) {
+        return products;
+    }
+
+    return products.filter(
+        (product) => Number(product.id) !== Number(id)
+    );
+}
+
+function updateProductInInfiniteData(data, id, updater) {
+    if (!data || !Array.isArray(data.pages)) {
+        return data;
+    }
+
+    return {
+        ...data,
+        pages: data.pages.map((page) => {
+            if (Array.isArray(page)) {
+                return updateProductInArray(
+                    page,
+                    id,
+                    updater
+                );
+            }
+
+            if (Array.isArray(page?.results)) {
+                return {
+                    ...page,
+                    results: updateProductInArray(
+                        page.results,
+                        id,
+                        updater
+                    ),
+                };
+            }
+
+            return page;
+        }),
+    };
+}
+
+function removeProductFromInfiniteData(data, id) {
+    if (!data || !Array.isArray(data.pages)) {
+        return data;
+    }
+
+    return {
+        ...data,
+        pages: data.pages.map((page) => {
+            if (Array.isArray(page)) {
+                return removeProductFromArray(page, id);
+            }
+
+            if (Array.isArray(page?.results)) {
+                return {
+                    ...page,
+                    results: removeProductFromArray(
+                        page.results,
+                        id
+                    ),
+                };
+            }
+
+            return page;
+        }),
+    };
+}
+
+function updateProductCaches(queryClient, product) {
+    if (!product?.id) {
+        return;
+    }
+
+    const id = Number(product.id);
+
+    const list = getData(
+        queryClient,
+        PRODUCTS_QUERY_KEY
+    );
+
+    if (Array.isArray(list)) {
+        queryClient.setQueryData(
+            PRODUCTS_QUERY_KEY,
+            updateProductInArray(list, id, (previous) => ({
+                ...previous,
+                ...product,
+            }))
+        );
+    }
+
+    const infiniteData = getData(
+        queryClient,
+        INFINITE_PRODUCTS_QUERY_KEY
+    );
+
+    if (infiniteData) {
+        queryClient.setQueryData(
+            INFINITE_PRODUCTS_QUERY_KEY,
+            updateProductInInfiniteData(
+                infiniteData,
+                id,
+                (previous) => ({
+                    ...previous,
+                    ...product,
+                })
+            )
+        );
+    }
+
+    queryClient.setQueryData(
+        productKey(id),
+        (previous) => ({
+            ...(previous || {}),
+            ...product,
+        })
+    );
+}
+
+function addProductToCaches(queryClient, product) {
+    if (!product?.id) {
+        return;
+    }
+
+    const id = Number(product.id);
+
+    const list = getData(
+        queryClient,
+        PRODUCTS_QUERY_KEY
+    );
+
+    if (Array.isArray(list)) {
+        const exists = list.some(
+            (item) => Number(item.id) === id
+        );
+
+        queryClient.setQueryData(
+            PRODUCTS_QUERY_KEY,
+            exists
+                ? list.map((item) =>
+                    Number(item.id) === id
+                        ? { ...item, ...product }
+                        : item
+                )
+                : [product, ...list]
+        );
+    }
+
+    const infiniteData = getData(
+        queryClient,
+        INFINITE_PRODUCTS_QUERY_KEY
+    );
+
+    if (infiniteData) {
+        const exists = infiniteData.pages.some((page) => {
+            const items = Array.isArray(page)
+                ? page
+                : page?.results;
+
+            return (
+                Array.isArray(items) &&
+                items.some(
+                    (item) => Number(item.id) === id
+                )
+            );
+        });
+
+        if (exists) {
+            queryClient.setQueryData(
+                INFINITE_PRODUCTS_QUERY_KEY,
+                updateProductInInfiniteData(
+                    infiniteData,
+                    id,
+                    (previous) => ({
+                        ...previous,
+                        ...product,
+                    })
+                )
+            );
+        }
+    }
+
+    queryClient.setQueryData(
+        productKey(id),
+        product
+    );
+}
+
+function removeProductFromCaches(queryClient, id) {
+    const numericId = Number(id);
+
+    const list = getData(
+        queryClient,
+        PRODUCTS_QUERY_KEY
+    );
+
+    if (Array.isArray(list)) {
+        queryClient.setQueryData(
+            PRODUCTS_QUERY_KEY,
+            removeProductFromArray(list, numericId)
+        );
+    }
+
+    const infiniteData = getData(
+        queryClient,
+        INFINITE_PRODUCTS_QUERY_KEY
+    );
+
+    if (infiniteData) {
+        queryClient.setQueryData(
+            INFINITE_PRODUCTS_QUERY_KEY,
+            removeProductFromInfiniteData(
+                infiniteData,
+                numericId
+            )
+        );
+    }
+
+    queryClient.removeQuery(productKey(numericId));
+}
+
+async function invalidateCache(queryClient, id) {
+    const keys = [
+        PRODUCTS_QUERY_KEY,
+        INFINITE_PRODUCTS_QUERY_KEY,
+    ];
+
+    if (id !== undefined && id !== null) {
+        keys.push(productKey(id));
+    }
+
+    await Promise.all(
+        keys.map(async (key) => {
+            try {
+                await queryClient.invalidateQuery(key);
+            } catch {
+                // خطای invalidation نباید خطای اصلی را بپوشاند.
+            }
+        })
+    );
+}
 
 export function ProductProvider({ children }) {
     const queryClient = useQueryClient();
@@ -24,8 +325,8 @@ export function ProductProvider({ children }) {
         PRODUCTS_QUERY_KEY,
         getProducts,
         {
-            staleTime: 30_000,
-            cacheTime: 300_000,
+            staleTime: PRODUCTS_STALE_TIME,
+            cacheTime: PRODUCTS_CACHE_TIME,
             retry: 2,
             retryDelay: 500,
         }
@@ -35,89 +336,242 @@ export function ProductProvider({ children }) {
     const updateMutation = useMutation(updateProduct);
     const deleteMutation = useMutation(deleteProduct);
 
-    async function addProduct(product) {
-        const newProduct = await createMutation.execute(product);
+    const addProduct = useCallback(
+        async (product) => {
+            const temporaryId = -Date.now();
 
-        queryClient.setQueryData(
-            PRODUCTS_QUERY_KEY,
-            previous => {
-                const products = previous || [];
+            const idempotencyKey =
+                typeof crypto !== "undefined" &&
+                    typeof crypto.randomUUID === "function"
+                    ? crypto.randomUUID()
+                    : `${Date.now()}-${Math.random()
+                        .toString(36)
+                        .slice(2)}`;
 
-                if (
-                    products.some(item => item.id === newProduct.id)
-                ) {
-                    return products;
+            const temporaryProduct = {
+                ...product,
+                id: temporaryId,
+            };
+
+            const currentList = getData(
+                queryClient,
+                PRODUCTS_QUERY_KEY
+            );
+
+            if (Array.isArray(currentList)) {
+                queryClient.setQueryData(
+                    PRODUCTS_QUERY_KEY,
+                    [temporaryProduct, ...currentList]
+                );
+            }
+
+            try {
+                const createdProduct =
+                    await createMutation.executeForKey(
+                        temporaryId,
+                        product,
+                        idempotencyKey
+                    );
+
+                const latestList = getData(
+                    queryClient,
+                    PRODUCTS_QUERY_KEY
+                );
+
+                if (Array.isArray(latestList)) {
+                    queryClient.setQueryData(
+                        PRODUCTS_QUERY_KEY,
+                        latestList.filter(
+                            (item) =>
+                                Number(item.id) !== temporaryId
+                        )
+                    );
                 }
 
-                return [...products, newProduct];
+                addProductToCaches(
+                    queryClient,
+                    createdProduct
+                );
+
+                return createdProduct;
+            } catch (error) {
+                const latestList = getData(
+                    queryClient,
+                    PRODUCTS_QUERY_KEY
+                );
+
+                if (Array.isArray(latestList)) {
+                    queryClient.setQueryData(
+                        PRODUCTS_QUERY_KEY,
+                        latestList.filter(
+                            (item) =>
+                                Number(item.id) !== temporaryId
+                        )
+                    );
+                }
+
+                await invalidateCache(queryClient);
+
+                throw error;
             }
-        );
+        },
+        [queryClient, createMutation.executeForKey]
+    );
 
-        queryClient.setQueryData(
-            ["products", Number(newProduct.id)],
-            newProduct
-        );
+    const editProduct = useCallback(
+        (id, product) =>
+            enqueueMutation(
+                `product:${Number(id)}`,
+                async () => {
+                    const numericId = Number(id);
 
-        return newProduct;
-    }
+                    try {
+                        const updatedProduct =
+                            await updateMutation.executeForKey(
+                                numericId,
+                                numericId,
+                                product
+                            );
 
-    async function editProduct(id, product) {
-        const updatedProduct = await updateMutation.execute(
-            id,
-            product
-        );
+                        updateProductCaches(
+                            queryClient,
+                            updatedProduct
+                        );
 
-        queryClient.setQueryData(
-            PRODUCTS_QUERY_KEY,
-            previous =>
-                (previous || []).map(item =>
-                    item.id === updatedProduct.id
-                        ? updatedProduct
-                        : item
-                )
-        );
+                        return updatedProduct;
+                    } catch (error) {
+                        console.error(
+                            "خطای ویرایش محصول:",
+                            error
+                        );
 
-        queryClient.setQueryData(
-            ["products", Number(id)],
-            updatedProduct
-        );
+                        await invalidateCache(
+                            queryClient,
+                            numericId
+                        );
 
-        return updatedProduct;
-    }
+                        throw error;
+                    }
+                }
+            ),
+        [queryClient, updateMutation.executeForKey]
+    );
 
-    async function removeProduct(id) {
-        await deleteMutation.execute(id);
+    const removeProduct = useCallback(
+        (id) =>
+            enqueueMutation(
+                `product:${Number(id)}`,
+                async () => {
+                    const numericId = Number(id);
 
-        queryClient.setQueryData(
-            PRODUCTS_QUERY_KEY,
-            previous =>
-                (previous || []).filter(
-                    item => item.id !== Number(id)
-                )
-        );
+                    const previousDetail = getData(
+                        queryClient,
+                        productKey(numericId)
+                    );
 
-        queryClient.removeQuery(["products", Number(id)]);
-    }
+                    const previousList = getData(
+                        queryClient,
+                        PRODUCTS_QUERY_KEY
+                    );
 
-    const value = {
-        products: productsQuery.data || [],
-        loading: productsQuery.loading,
-        error: productsQuery.error,
-        refetch: productsQuery.refetch,
+                    const previousProduct =
+                        previousDetail ||
+                        (Array.isArray(previousList)
+                            ? previousList.find(
+                                (item) =>
+                                    Number(item.id) ===
+                                    numericId
+                            )
+                            : null);
 
-        creating: createMutation.loading,
-        createError: createMutation.error,
+                    removeProductFromCaches(
+                        queryClient,
+                        numericId
+                    );
 
-        updating: updateMutation.loading,
-        updateError: updateMutation.error,
+                    try {
+                        await deleteMutation.executeForKey(
+                            numericId,
+                            numericId
+                        );
 
-        deleting: deleteMutation.loading,
-        deleteError: deleteMutation.error,
+                        return numericId;
+                    } catch (error) {
+                        // حذف ممکن است در سرور انجام شده باشد؛
+                        // محصول را صرفاً از روی Snapshot برنمی‌گردانیم.
+                        await invalidateCache(
+                            queryClient,
+                            numericId
+                        );
 
-        addProduct,
-        editProduct,
-        removeProduct,
-    };
+                        throw error;
+                    }
+                }
+            ),
+        [queryClient, deleteMutation.executeForKey]
+    );
+
+    const cancelMutations = useCallback(() => {
+        createMutation.cancelAll();
+        updateMutation.cancelAll();
+        deleteMutation.cancelAll();
+    }, [
+        createMutation.cancelAll,
+        updateMutation.cancelAll,
+        deleteMutation.cancelAll,
+    ]);
+
+    const refetch = useCallback(async () => {
+        await invalidateCache(queryClient);
+
+        return productsQuery.refetch();
+    }, [queryClient, productsQuery.refetch]);
+
+    const value = useMemo(
+        () => ({
+            products: productsQuery.data ?? [],
+            loading: productsQuery.loading,
+            error: productsQuery.error,
+            refetch,
+
+            addProduct,
+            editProduct,
+            removeProduct,
+
+            creating: createMutation.loading,
+            createError: createMutation.error,
+            getCreateStatus: createMutation.getStatus,
+
+            updating: updateMutation.loading,
+            updateError: updateMutation.error,
+            getUpdateStatus: updateMutation.getStatus,
+
+            deleting: deleteMutation.loading,
+            deleteError: deleteMutation.error,
+            getDeleteStatus: deleteMutation.getStatus,
+
+            cancelMutations,
+        }),
+        [
+            productsQuery.data,
+            productsQuery.loading,
+            productsQuery.error,
+            refetch,
+            addProduct,
+            editProduct,
+            removeProduct,
+            createMutation.loading,
+            createMutation.error,
+            createMutation.getStatus,
+            updateMutation.loading,
+            updateMutation.error,
+            updateMutation.getStatus,
+            deleteMutation.loading,
+            deleteMutation.error,
+            deleteMutation.getStatus,
+            cancelMutations,
+        ]
+    );
 
     return (
         <ProductContext.Provider value={value}>
@@ -131,11 +585,9 @@ export function useProducts() {
 
     if (!context) {
         throw new Error(
-            "useProducts must be used inside ProductProvider"
+            "useProducts باید داخل ProductProvider استفاده شود."
         );
     }
 
     return context;
 }
-
-export default ProductContext;

@@ -1,32 +1,70 @@
+import {
+    useCallback,
+} from "react";
 
-import { useNavigate } from "react-router-dom";
+import {
+    useNavigate,
+} from "react-router-dom";
+
 import ProductForm from "../components/ProductForm";
-import { useProducts } from "../context/ProductContext";
+import MutationError from "../components/MutationError";
+
+import useProductMutations from "../hooks/useProductMutations";
+
+import {
+    useQueryClient,
+} from "../query/QueryClientContext";
 
 function AddProduct() {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
 
     const {
-        addProduct,
-        creating,
-        createError,
-    } = useProducts();
+        create,
+        createMutation,
+    } = useProductMutations(queryClient);
 
-    async function handleAddProduct(product) {
-        await addProduct(product);
-        navigate("/products");
-    }
+    const handleCreate = useCallback(
+        async (product) => {
+            const createdProduct =
+                await create(product);
+
+            navigate(
+                `/products/${createdProduct.id}`
+            );
+        },
+        [create, navigate]
+    );
 
     return (
-        <main dir="rtl">
+        <main>
             <h1>افزودن محصول</h1>
 
-            <ProductForm
-                onSubmit={handleAddProduct}
-                loading={creating}
-                error={createError}
-                submitText="ثبت محصول"
+            <MutationError
+                error={createMutation.error}
+                onDismiss={createMutation.reset}
             />
+
+            <ProductForm
+                onSubmit={handleCreate}
+                submitLabel="ایجاد محصول"
+                loading={
+                    createMutation.loading
+                }
+                error={null}
+            />
+
+            <button
+                type="button"
+                onClick={() =>
+                    navigate("/products")
+                }
+                disabled={
+                    createMutation.loading
+                }
+            >
+                بازگشت
+            </button>
         </main>
     );
 }

@@ -1,59 +1,218 @@
+import {
+    useCallback,
+    useEffect,
+    useRef,
+    useState,
+} from "react";
 
-import { useCallback, useRef, useState } from "react";
 import useApi from "./useApi";
+import { useQueryClient } from "../query/QueryClientContext";
 
-function useMutation(mutationFunction) {
+const INITIAL_STATE = {
+    data: null,
+    error: null,
+    status: "idle",
+    loading: false,
+    cancelled: false,
+};
+
+function useMutation(mutationFn, options = {}) {
+    const queryClient = useQueryClient();
     const { request } = useApi();
 
-    const lockRef = useRef(false);
+    const [state, setState] = useState(INITIAL_STATE);
 
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState("");
-    const [success, setSuccess] = useState(false);
+    const mountedRef = useRef(false);
+    const sequenceRef = useRef(0);
+    const latestIdRef = useRef(0);
+    const controllersRef = useRef(new Map());
 
-    const execute = useCallback(
-        async (...args) => {
-            if (lockRef.current) {
-                throw new Error("این عملیات در حال اجرا است.");
+    const mutationFnRef = useRef(mutationFn);
+    const optionsRef = useRef(options);
+
+    mutationFnRef.current = mutationFn;
+    optionsRef.current = options;
+
+    useEffect(() => {
+        mountedRef.current = true;
+
+        return () => {
+            mountedRef.current = false;
+
+            for (const controller of controllersRef.current.values()) {
+                controller.abort();
             }
 
-            lockRef.current = true;
-            setLoading(true);
-            setError("");
-            setSuccess(false);
+            controllersRef.current.clear();
+            latestIdRef.current = ++sequenceRef.current;
+        };
+    }, []);
+
+    const mutateAsync = useCallback(
+        async (...args) => {
+            const id = ++sequenceRef.current;
+            latestIdRef.current = id;
+
+            const variables =
+                args.length === 1 ? args[0] : args;
+
+            const controller = new AbortController();
+            controllersRef.current.set(id, controller);
+
+            const currentOptions = optionsRef.current;
+
+            const requestWithSignal = (url, requestOptions = {}) =>
+                request(url, {
+                    ...requestOptions,
+                    signal: controller.signal,
+                });
+
+            let data;
+            let mutationError = null;
+
+            if (mountedRef.current) {
+                setState({
+                    ...INITIAL_STATE,
+                    status: "pending",
+                    loading: true,
+                });
+            }
 
             try {
-                const result = await mutationFunction(
-                    request,
+                await currentOptions.onMutate?.(variables);
+
+                if (controller.signal.aborted) {
+                    const error = new Error("عملیات لغو شد.");
+                    error.name = "AbortError";
+                    throw error;
+                }
+
+                data = await mutationFnRef.current(
+                    requestWithSignal,
                     ...args
                 );
 
-                setSuccess(true);
-                return result;
-            } catch (err) {
-                setError(
-                    err?.message || "عملیات با خطا مواجه شد."
+                if (controller.signal.aborted) {
+                    const error = new Error("عملیات لغو شد.");
+                    error.name = "AbortError";
+                    throw error;
+                }
+
+                if (
+                    mountedRef.current &&
+                    latestIdRef.current === id
+                ) {
+                    setState({
+                        data,
+                        error: null,
+                        status: "success",
+                        loading: false,
+                        cancelled: false,
+                    });
+                }
+
+                await currentOptions.onSuccess?.(
+                    data,
+                    variables
                 );
 
-                throw err;
+                return data;
+            } catch (error) {
+                mutationError = error;
+
+                const cancelled =
+                    error?.name === "AbortError" ||
+                    controller.signal.aborted;
+
+                if (
+                    mountedRef.current &&
+                    latestIdRef.current === id
+                ) {
+                    setState({
+                        data: null,
+                        error: cancelled ? null : error,
+                        status: cancelled ? "idle" : "error",
+                        loading: false,
+                        cancelled,
+                    });
+                }
+
+                if (!cancelled) {
+                    await currentOptions.onError?.(
+                        error,
+                        variables
+                    );
+                }
+
+                throw error;
             } finally {
-                lockRef.current = false;
-                setLoading(false);
+                controllersRef.current.delete(id);
+
+                if (
+                    mountedRef.current &&
+                    latestIdRef.current === id
+                ) {
+                    setState((previous) => ({
+                        ...previous,
+                        loading: false,
+                    }));
+                }
+
+                await currentOptions.onSettled?.(
+                    data,
+                    mutationError,
+                    variables
+                );
             }
         },
-        [mutationFunction, request]
+        [request]
     );
 
+    const mutate = useCallback(
+        (...args) => {
+            mutateAsync(...args).catch(() => {
+                // خطا در state ذخیره می‌شود.
+            });
+        },
+        [mutateAsync]
+    );
+
+    const cancel = useCallback(() => {
+        latestIdRef.current = ++sequenceRef.current;
+
+        for (const controller of controllersRef.current.values()) {
+            controller.abort();
+        }
+
+        controllersRef.current.clear();
+
+        if (mountedRef.current) {
+            setState({
+                ...INITIAL_STATE,
+                cancelled: true,
+            });
+        }
+    }, []);
+
     const reset = useCallback(() => {
-        setError("");
-        setSuccess(false);
+        latestIdRef.current = ++sequenceRef.current;
+
+        for (const controller of controllersRef.current.values()) {
+            controller.abort();
+        }
+
+        controllersRef.current.clear();
+
+        if (mountedRef.current) {
+            setState({ ...INITIAL_STATE });
+        }
     }, []);
 
     return {
-        execute,
-        loading,
-        error,
-        success,
+        ...state,
+        mutate,
+        mutateAsync,
+        cancel,
         reset,
     };
 }

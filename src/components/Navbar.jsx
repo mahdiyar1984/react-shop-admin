@@ -1,29 +1,20 @@
-import { Link } from "react-router-dom";
+import { memo } from "react";
+import { NavLink } from "react-router-dom";
 
 function Navbar() {
-
     return (
-
         <nav>
-
-            <Link to="/">
-                Dashboard
-            </Link>
-
+            <NavLink to="/dashboard">داشبورد</NavLink>
             {" | "}
-
-            <Link to="/products">
-                Products
-            </Link>
-
+            <NavLink to="/products">محصولات</NavLink>
             {" | "}
-
-            <Link to="/products/add">
-                Add Product
-            </Link>
-
+            <NavLink to="/multiple-products">چند محصول</NavLink>
+            {" | "}
+            <NavLink to="/infinite-products">محصولات بیشتر</NavLink>
+            {" | "}
+            <NavLink to="/integration-test">تست یکپارچه</NavLink>
         </nav>
     );
 }
 
-export default Navbar;
+export default memo(Navbar);
